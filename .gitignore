@@ -1,0 +1,10 @@
+.koka
+scratch/
+deps/
+.kokac
+koka
+koka.exe
+kokatmp
+test2
+bin/kokac
+bin/kokac.exe
