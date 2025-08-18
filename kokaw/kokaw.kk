@@ -5,79 +5,87 @@
    use this file except in compliance with the License. A copy of the License
    can be found in the LICENSE file at the root of this distribution.
 ----------------------------------------------------------------------------*/
-module kokac/kokac
+module kokaw/kokaw
 import std/os/path
 import std/os/dir
 import std/os/file
+import std/os/flags
 import std/os/process
 import std/os/env
-import kokac/package
-import kokac/exec
-import kokac/git
-import kokac/config
-import kokac/exec
-import kokac/utils
+import kokaw/package
+import kokaw/exec
+import kokaw/git
+import kokaw/config
+import kokaw/exec
+import kokaw/utils
 
 // TODO: Check for changes / open editor in dependency
 // TODO: VSCode extension (try to use official extension but with different Koka executable location, since this should mimic it)
 // TODO: Default shallow clone. 
 // TODO: Remove koka-community repo, and suggest migration to this tool
 
+// Some utility functions for accessing common paths
 fun package-root() package-paths().package-root
 fun last-deps-path() package-paths().last-deps-path
-fun kokac-path() package-paths().kokac-path
+fun kokaw-path() package-paths().kokaw-path
 fun package-path() package-paths().package-path
-fun kokac-package-path() package-paths().kokac-package-path
+fun kokaw-package-path() package-paths().kokaw-package-path
 fun package-runner-source() package-paths().package-runner-source
 fun package-runner-exe() package-paths().package-runner-exe
 fun update-runner-source() package-paths().update-runner-source
 fun update-runner-exe() package-paths().update-runner-exe
 
+// Determines the paths for `.kokaw` configuration and script files.
 fun mk-paths(root: path): <ndet> paths
-  val kkc = root / ".kokac"
-  // trace("kokac " ++ kkc.show)
+  val kkc = root / ".kokaw"
+  // trace("kokaw " ++ kkc.show)
   val p = Paths(
     package-root = root,
     package-path = root / "package.kk",
-    kokac-path = kkc,
-    kokac-package-path = kkc / "current" / "package.kk",
+    kokaw-path = kkc,
+    kokaw-package-path = kkc / "current" / "package.kk",
     last-deps-path = kkc / "last-deps",
     package-runner-source = kkc / "koka-package-runner.kk",
     package-runner-exe = (kkc / "koka-package-runner").exe-path,
     update-runner-source = kkc / "koka-update-runner.kk",
-    update-runner-exe = (root / "koka").exe-path
+    update-runner-exe = (root / "kokaw").exe-path
   )
   // trace("next " ++ kkc.show)
   p
 
+// Sets the package root directory
 pub fun set-package-root(root: path, f: () -> <package-paths,ndet|e> a): <ndet|e> a
   // trace("package-root: " ++ root.string)
   with fun package-paths() mk-paths(root)
   f()
 
-// Runs a file
+// Compiles a `file` with `args` using the package config to determine include paths.
 fun run-file(file: path, args: list<string>): <package-paths,current-dir,package-config,io> int
-  val args' = imports-args() ++ args
+  val args' = includes-args() ++ args
   val command = get-compiler-command() ++ " " ++ file.realpath.string ++ " " ++ args'.join(" ")
   println(command)
   run-result(command)
 
-// Runs the language server or passes through arguments that don't contain a file
+// Runs the language server or passes through arguments that don't contain a file.
+// Uses the package config to determine the include paths.
 fun run-basic(args: list<string>): <package-paths,current-dir,package-config,io> int
-  val args' = imports-args() ++ args
+  val args' = includes-args() ++ args
   val command = get-compiler-command() ++ " " ++ args'.join(" ")
   println(command)
   run-result(command)
 
+// Downloads a git `dep` to the `target-dir`
 fun download(dep: dependency, target-dir: path): io ()
   match dep.source
     GitDep(url, path, ref) -> download-or-update(dep.name, url, path, ref, target-dir)
 
+// Determines the cache path for dependencies
 fun deps-path(resolution: resolution): <package-paths,io> path
   match resolution
     Global(pkg-path) -> pkg-path
     Local -> package-root() / "deps"
 
+// Install dependencies
 fun install(): <package-config,package-paths,io> ()
   val download-dir = get-resolution().deps-path
   ensure-dir(download-dir)
@@ -87,22 +95,26 @@ fun install(): <package-config,package-paths,io> ()
     download(dep, download-dir)
   ()
 
-fun imports(): <package-config,package-paths,io> list<path>
+// Get the include paths for dependencies
+fun includes(): <package-config,package-paths,io> list<path>
   val top-path = get-resolution().deps-path
   (get-dependencies() ++ get-dev-dependencies()).map fn(dep)
     top-path / dep.name
 
-fun imports-args(): <package-config,package-paths,io> list<string>
-  imports().map(fn(p) "-i" ++ p.string)
+// Get include arguments for the koka compiler
+fun includes-args(): <package-config,package-paths,io> list<string>
+  includes().map(fn(p) "-i" ++ p.string)
 
+// Basic package `bin/run.kk` file for testing dependencies install
 val basic-test = r#"
 import std/data/json
 fun main()
   JSList([JSString("Hi")]).println
 "#
 
+// Basic `package.yaml` template file
 val basic-package = r#"
-import kokac/config
+import kokaw/config
 
 fun package()
   dependencies
@@ -110,8 +122,9 @@ fun package()
       "git@github.com:koka-community/std"
 "#
 
-pub fun name/init(nm: path): io ()
-  val cd = if nm.is-absolute then nm else cwd() / nm
+// Initializes a new package in `path`
+pub fun name/init(path: path): io ()
+  val cd = if path.is-absolute then path else cwd() / path
   println("Init " ++ cd.realpath.string)
   with fun current-dir() cd 
   val pkg = (current-dir() / "package.kk").realpath
@@ -120,6 +133,8 @@ pub fun name/init(nm: path): io ()
   write-text-file(current-dir() / "bin" / "run.kk", basic-test, True)
   common/init()
 
+// Initializes a new package in the current directory
+// Only adds `package.yaml` and no other template files or directories
 pub fun basic/init(): io ()
   val pkg = cwd() / "package.kk"
   with fun current-dir() cwd()
@@ -127,39 +142,45 @@ pub fun basic/init(): io ()
     write-text-file(pkg, basic-package)
   common/init()
 
+// Initializes the package directory, the updater script, and the `./kokaw` runner.
 noinline fun common/init(): <io,current-dir> ()
   with set-package-root(current-dir())
   init-directory()
   init-updater()
   init-package-runner()
 
+// Initializes basic dependencies (`kokaw`), and sets up the `.kokaw` directory.
 fun init-directory(): <io,package-paths> ()
   val deps = package-root() / "deps"
   ensure-dir(deps)
-  download-or-update("kokac", "https://github.com/koka-community/kokac", "", GitDefault, deps)
-  ensure-dir(kokac-path())
+  download-or-update("kokaw", "https://github.com/koka-community/kokaw", "", GitDefault, deps)
+  ensure-dir(kokaw-path())
   copy-package-file()
 
+// Copies the package file to the kokaw directory
 fun copy-package-file()
-  ensure-dir(kokac-path() / "current")
-  copy-file(package-path(), kokac-package-path())
+  ensure-dir(kokaw-path() / "current")
+  copy-file(package-path(), kokaw-package-path())
 
+// Initializes the updater (keeping the `./kokaw` script up to date with changes to the `package.yaml` file)
 fun init-updater()
   val runner = update-runner-source()
   val out = update-runner-exe()
   write-text-file(runner, update-runner(current-dir().string))
   write-text-file(last-deps-path(), "")
-  run("koka " ++ runner.string ++ " -o\"" ++ out.string ++ "\" -i" ++ ("deps" / "kokac").string)
+  run("koka " ++ runner.string ++ " -o\"" ++ out.string ++ "\" -i" ++ ("deps" / "kokaw").string)
   make-executable(out)
   
+// Initializes the `./kokaw` script the first time, updating and building it if changed
 fun init-package-runner()
   update-package-runner()
   build-package-runner()
   ()
 
+// The template for the script to update the `./kokaw` runner
 fun update-runner(package-dir: string)
   r#"
-import kokac/kokac
+import kokaw/kokaw
 import std/os/path
 
 fun main()
@@ -167,6 +188,7 @@ fun main()
   ()
 "#
 
+// Bootstraps the package by ensuring all dependencies are installed
 pub fun bootstrap-package(package-dir: path)
   with fun current-dir() package-dir
   with set-package-root(package-dir)
@@ -181,12 +203,14 @@ pub fun bootstrap-package(package-dir: path)
     ()
   run-package-runner()
 
+// Updates the `./kokaw` runner script
 fun update-package-runner()
   val last-deps = current-packages(current-dir() / "deps");
-  copy-file(package-path(), kokac-package-path())
+  copy-file(package-path(), kokaw-package-path())
   write-text-file(last-deps-path(), last-deps.join("\n"))  
   write-text-file(package-runner-source(), package-runner(last-deps))
 
+// Checks to see if the `package.yaml` file has changed
 fun out-of-date()
   val pkg = file_modified(package-path())
   val current = file_modified(package-runner-source())
@@ -200,26 +224,30 @@ fun out-of-date()
     True
   else False
 
+// Check to see if the deps have changed.
 fun parse-last-deps()
   val file = read-text-file(last-deps-path())
   file.split("\n").filter(fn(p) p != "")
 
+// Build the `./kokaw` wrapper
 fun build-package-runner()
   val out = package-runner-exe()
-  run("koka " ++ package-runner-source().string ++ " -o \"" ++ out.string ++ "\" -ideps -i.kokac -i" ++ ("deps" / "kokac").string)
+  run("koka " ++ package-runner-source().string ++ " -o \"" ++ out.string ++ "\" -ideps -i.kokaw -i" ++ ("deps" / "kokaw").string)
   make-executable(out)
 
+// Build the `./kokaw` wrapper
 fun run-package-runner()
   val args = get-args()
   run-result(package-runner-exe().string ++ " " ++ args.join(" "))
 
+// The template for the `./kokaw` wrapper
 fun package-runner(deps: list<string>)
   r#"
 import current/package
-import kokac/config
-import kokac/exec
-import kokac/kokac
-import kokac/utils
+import kokaw/config
+import kokaw/exec
+import kokaw/kokaw
+import kokaw/utils
 import std/os/env
 import std/os/path
 import std/os/dir
@@ -238,6 +266,7 @@ fun main()
   ()
 "#
 
+// Get the current dependencies in the `deps` directory that have `package.yaml` dependency files.
 fun current-packages(dep-dir: path): io list<string>
   val packages = dep-dir.list-directory.filter fn(d)
     (d / "package.kk").is-file
@@ -245,20 +274,52 @@ fun current-packages(dep-dir: path): io list<string>
 
 alias package-registrar = () -> <package-config> ()
 
+// Install dependencies then attempt to run with the arguments.
 pub fun install-run(package-path: path,
                     deps: list<package-registrar>, 
                     last-deps: list<string>): <current-dir,package-paths,package-config,io> int
-  deps.foreach(submodule/config)
+  deps.foreach(dep/config)
   install()
   if current-packages(get-resolution().deps-path) != last-deps then
+    println("Dependencies have changed, please run again")
     -1
   else
     val args = get-args()
-    // Split the file from the rest of the arguments so we can resolve the package from the file
-    val (file, rest) = args.span(fn(a) a.starts-with("-").is-nothing && a.starts-with("--").is-nothing)
-    match file
-      Cons(f, Nil) -> 
-        run-file((cwd() / f).realpath, rest)
-      _ -> 
-        run-basic(args) // Just passthrough the arguments using the cwd as location to resolve package file from.
+    match args
+      Nil -> 
+        println("No arguments to koka, running `koka --help`")
+        run-basic(["--help"])
+      Cons(arg, rest) ->
+        if arg == "run" then 
+          // Lookup script
+          val scripts = get-scripts()
+          match rest
+            Nil -> 
+              println("No script specified, options:\n" ++ scripts.map(show).join("\n"))
+              // -1
+            Cons(name, script-args) -> 
+              match scripts.filter(_.command == name).head
+                Nothing -> 
+                  println("Script not found, assuming `koka -e " ++ args.join(" ") ++ "`")
+                  // -1
+                Just(script) -> 
+                  match script
+                    SimpleScript(_, execute) -> run-result(execute ++ " " ++ script-args.join(" "))
+                    KokaScript(_, flags, default, execute) ->
+                      val (flags', args', errs) = parse(default, flags, script-args)
+                      if errs.is-nil then
+                        execute(flags', args')
+                      else 
+                        println(script.show)
+                        -1
+                      // Run the script with the flags and arguments       
+                  ()
+                  // -1
+        // Split the file from the rest of the arguments so we can resolve the package from the file
+        val (files, koka-args) = args.span(fn(a) a.starts-with("-").is-nothing && a.starts-with("--").is-nothing)
+        match files
+          Cons(f, Nil) -> 
+            run-file((cwd() / f).realpath, koka-args)
+          _ -> 
+            run-basic(args) // Just passthrough the arguments using the cwd as location to resolve package file from.
 

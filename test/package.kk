@@ -1,8 +1,8 @@
-import kokac/config
+import kokaw/config
 
 fun package()
   dependencies
-    dep("parsing", branch="kokac")
+    dep("parsing", branch="kokaw")
       "git@github.com:koka-community/parsing"
     // dep("std")
     //   "git@github.com:koka-community/std"

@@ -2,9 +2,9 @@ import std/os/path
 import std/os/dir
 import std/os/env
 import std/os/process
-import kokac/exec 
-import kokac/config 
-import kokac/package
+import kokaw/exec 
+import kokaw/config 
+import kokaw/package
 
 extern import
   c file "utils.c"
@@ -12,9 +12,11 @@ extern import
 extern string/file_modified(path: string): fsys maybe<int>
   c "kk_file_modified"
 
+// Gets the last modification time of a file
 pub fun path/file_modified(p: path): <fsys,exn> int
   p.string.file_modified.unjust
 
+// Finds the package root, looking upwards from `folder`
 pub fun find-package-root(folder: path): io path
   if folder.dirname == folder.string || folder.string == "" then
     throw("Couldn't find the package path")
@@ -24,9 +26,11 @@ pub fun find-package-root(folder: path): io path
     else
       find-package-root(folder.dirname.path)
 
+// Adds `.exe` to the path if on windows 
 pub fun exe-path(path: path): ndet path
   if get-os-name() == "windows" then path.change-ext(".exe") else path
 
+// Makes a file executable
 pub fun make-executable(p: path)
   if get-os-name() == "windows" then
     run("cmd /c attrib +x \"" ++ p.string ++ "\"")
@@ -36,6 +40,7 @@ pub fun make-executable(p: path)
 pub fun path/(==)(p1: path, p2: path): bool
   p1.string == p2.string
 
+// Determines a relative path from a `p: path`, and the expected `base: path` that `p` starts with 
 pub fun relative-path(p: path, base: path): io path 
   // println("relative-path " ++ p.string ++ " " ++ base.string)
   val pparts = p.realpath.dirparts
@@ -52,6 +57,8 @@ pub fun relative-path(p: path, base: path): io path
   // println("relative-path2 " ++ p.string ++ " " ++ base.string)
   go(bparts, pparts).foldl("".path, fn(acc, x) acc / x)
 
+// Gets the command for a configured compiler
+// Only supports `Default` and `Sdk` configurations
 pub fun get-compiler-command(): <package-config,io> string
   match get-compiler()
     Default -> "koka"

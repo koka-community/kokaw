@@ -1,10 +1,10 @@
-import kokac/package
-import kokac/kokac
+import kokaw/package
+import kokaw/kokaw
 import std/os/path
 
 fun main()
-  println("../kokac/test")
-  init("../kokac/test".realpath)
-  // run("../kokac/test/bin/run.kk".path, ["-e"])
+  println("../kokaw/test")
+  init("../kokaw/test".realpath)
+  // run("../kokaw/test/bin/run.kk".path, ["-e"])
   ()
   

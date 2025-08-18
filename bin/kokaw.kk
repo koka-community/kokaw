@@ -7,22 +7,15 @@
 ----------------------------------------------------------------------------*/
 import std/os/env
 import std/os/path
+import std/os/dir
 import std/os/process
-import kokac/kokac
-import kokac/package
-import kokac/git
-import kokac/utils
+import kokaw/kokaw
+import kokaw/package
+import kokaw/git
+import kokaw/utils
 
 pub fun main()
   val args = get-args()
   match args
     Cons("init", Cons(name, Nil)) -> init(name.path)
     Cons("init", Nil) -> init()
-    _ ->
-      val file = args.filter(fn(a) a.starts-with("-").is-nothing && a.starts-with("--").is-nothing)
-      match file
-        Cons(f, Nil) -> 
-          val root = find-package-root(f.path.realpath)
-          run-system(root.realpath.string ++ " " ++ args.join(" "))
-          ()
-        _ -> throw("Pass a file to resolve the package location from, even for the language server")

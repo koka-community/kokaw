@@ -5,12 +5,13 @@
    use this file except in compliance with the License. A copy of the License
    can be found in the LICENSE file at the root of this distribution.
 ----------------------------------------------------------------------------*/
-module kokac/git
-import kokac/exec
+module kokaw/git
+import kokaw/exec
 import std/os/path
 import std/os/process
 import std/os/dir
 
+// A git reference can be a commit hash, a branch name, or the default branch
 pub value type git-ref
   GitCommit(hash: string)
   GitBranch(name: string)
@@ -34,12 +35,14 @@ pub fun git-ref/show(this : git-ref) : e string
     GitDefault ->
       "GitDefault"
 
+// Get the git cli name of the ref (`main` is treated as default)
 pub fun ref(r: git-ref)
   match r
     GitCommit(h) -> h
     GitBranch(b) -> b
     GitDefault -> "main"
 
+// Exposes all branches in the git config to allow switching branches
 pub fun expose-branches(): <current-dir,io> ()
   run("git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'")
   ()
@@ -54,6 +57,7 @@ pub fun fetch-all(shallow: bool = True): <current-dir,io> ()
     run("git fetch --all")
     ()
 
+// Checkout a git reference
 pub fun checkout(commit: git-ref)
   match commit
     GitDefault -> 
@@ -64,10 +68,12 @@ pub fun checkout(commit: git-ref)
       run("git checkout " ++ commit.ref)
       ()
 
+// Pull the latest changes
 pub fun pull()
   run("git pull")
   ()
 
+// Downloads or updates a git repository
 pub fun download-or-update(name: string, url: string, repo-path: string, commit: git-ref, target-dir: path)
   if repo-path != "" then 
     throw("Unsupported repo-path")
