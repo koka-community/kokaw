@@ -63,13 +63,15 @@ pub fun pull()
 pub fun download-or-update(name: string, url: string, repo-path: string, commit: git-ref, target-dir: path)
   if repo-path != "" then 
     throw("Unsupported repo-path")
-  trace("Downloading " ++ name ++ " from " ++ url ++ " to " ++ target-dir.string)
   with fun current-dir() target-dir
   if is-directory(target-dir / name) then 
     with fun current-dir() target-dir / name
+    println("Checking for updates for " ++ name)
     checkout(commit, name)
     pull()
-  else download(name, url, repo-path, commit)
+  else
+    println("Downloading " ++ name ++ " from " ++ url ++ " to " ++ target-dir.string) 
+    download(name, url, repo-path, commit)
 
 // TODO: Add an option to fork / shallow fetch all the repo when cloning to set up for contributions from outside and inside the organization
 pub fun download(name: string, url: string, repo-path: string, commit: git-ref)

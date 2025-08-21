@@ -206,7 +206,6 @@ pub fun bootstrap-package(package-dir: path)
       update-package-runner()
       build-package-runner()
       result := run-result(package-runner-exe().string ++ " check-deps")
-    println("Result " ++ result.show)
   run-package-runner()
 
 // Updates the `.kokaw/koka-package-runner` script
@@ -223,7 +222,7 @@ fun out-of-date()
   val deps = current-packages(current-dir() / "deps")
   val last-deps = parse-last-deps()
   if pkg > current then
-    trace("Package file out of date " ++ pkg.show ++ " " ++ current.show)
+    trace("Package file out of date, rebuilding `package.kk`")
     True
   elif deps != last-deps then
     trace("Current packages " ++ deps.show ++ " newer than last packages " ++ last-deps.show)
@@ -237,7 +236,7 @@ fun parse-last-deps()
 
 // Build the `.kokaw/koka-package-runner` wrapper
 fun build-package-runner()
-  trace("Building `package.kk` with new dependencies")
+  trace("Building `package.kk` to check for new transitive dependencies")
   val out = package-runner-exe()
   run("koka " ++ package-runner-source().string ++ " -o \"" ++ out.string ++ "\" -ideps -i.kokaw -i" ++ ("deps" / "kokaw").string)
   make-executable(out)
@@ -289,7 +288,6 @@ pub fun install-run(package-path: path,
   deps.foreach(dep/config)
   install()
   if current-packages(get-resolution().deps-path) != last-deps then
-    
     val args = get-args()
     match args
       Cons("check-deps") ->
@@ -304,6 +302,7 @@ pub fun install-run(package-path: path,
       Nil -> 
         println("No arguments to koka, running `koka --help`")
         run-basic(["--help"])
+      Cons("check-deps") -> 0 // No deps changed
       Cons(arg, rest) ->
         if arg == "run" then 
           // Lookup script
