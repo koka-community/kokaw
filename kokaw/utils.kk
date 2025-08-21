@@ -78,3 +78,8 @@ pub fun get-compiler-command(): <package-config,io> string
           else
             throw("Compiler not found at " ++ koka-path.string)
     _ -> throw("Compiler configuration not supported yet")
+
+// TODO: use core/std/exit after https://github.com/koka-lang/koka/pull/703 is released
+pub extern process-exit(i: int): io-noexn ()
+  c inline "exit(kk_integer_clamp32(#1, kk_context()))"
+  js inline "(function(){throw(`Exited with code: ${#1}`)})()"

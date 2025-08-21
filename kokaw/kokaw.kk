@@ -98,8 +98,9 @@ fun install(): <package-config,package-paths,io> ()
 // Get the include paths for dependencies
 fun includes(): <package-config,package-paths,io> list<path>
   val top-path = get-resolution().deps-path
-  (get-dependencies() ++ get-dev-dependencies()).map fn(dep)
+  val regular-deps = (get-dependencies() ++ get-dev-dependencies()).map fn(dep)
     top-path / dep.name
+  Cons(top-path / "kokaw", regular-deps)
 
 // Get include arguments for the koka compiler
 fun includes-args(): <package-config,package-paths,io> list<string>
@@ -181,11 +182,11 @@ fun init-package-runner()
 fun update-runner(package-dir: string)
   r#"
 import kokaw/kokaw
+import kokaw/utils
 import std/os/path
 
 fun main()
-  bootstrap-package("# ++ package-dir.show ++ r#".path)
-  ()
+  process-exit(bootstrap-package("# ++ package-dir.show ++ r#".path))
 "#
 
 // Bootstraps the package by ensuring all dependencies are installed
@@ -200,7 +201,13 @@ pub fun bootstrap-package(package-dir: path)
     ()
   if needs-build then
     build-package-runner()
-    ()
+    var result := run-result(package-runner-exe().string ++ " check-deps")
+    while {result == exit-code-changed-deps}
+      println("Updating package script...")
+      update-package-runner()
+      build-package-runner()
+      ()
+    println("Result " ++ result.show)
   run-package-runner()
 
 // Updates the `./kokaw` runner script
@@ -260,10 +267,9 @@ fun main()
   with fun current-dir() cwd()
   with set-package-root(find-package-root(current-dir()))
   with default-package-config(current/package/package)
-  install-run(package-path, ["# ++ 
+  process-exit(install-run(package-path, ["# ++ 
     deps.map(fn(d) d ++ "/package/package").join(", ") ++
-      r#"], last-deps)
-  ()
+      r#"], last-deps))
 "#
 
 // Get the current dependencies in the `deps` directory that have `package.yaml` dependency files.
@@ -274,6 +280,8 @@ fun current-packages(dep-dir: path): io list<string>
 
 alias package-registrar = () -> <package-config> ()
 
+val exit-code-changed-deps = 100
+
 // Install dependencies then attempt to run with the arguments.
 pub fun install-run(package-path: path,
                     deps: list<package-registrar>, 
@@ -281,8 +289,15 @@ pub fun install-run(package-path: path,
   deps.foreach(dep/config)
   install()
   if current-packages(get-resolution().deps-path) != last-deps then
-    println("Dependencies have changed, please run again")
-    -1
+    
+    val args = get-args()
+    match args
+      Cons("check-deps") ->
+        println("Dependencies changed... should update package script...") 
+        exit-code-changed-deps
+      _ -> 
+        println("Dependencies have changed, please run again")
+        -1
   else
     val args = get-args()
     match args
