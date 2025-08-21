@@ -169,10 +169,11 @@ fun init-updater()
   val out = update-runner-exe()
   write-text-file(runner, update-runner(current-dir().string))
   write-text-file(last-deps-path(), "")
+  println("Building the `kokaw` wrapper executable")
   run("koka " ++ runner.string ++ " -o\"" ++ out.string ++ "\" -i" ++ ("deps" / "kokaw").string)
   make-executable(out)
   
-// Initializes the `./kokaw` script the first time, updating and building it if changed
+// Initializes the `./kokaw` script the first time, updating and building the `.kokaw/koka-package-runner`
 fun init-package-runner()
   update-package-runner()
   build-package-runner()
@@ -195,7 +196,6 @@ pub fun bootstrap-package(package-dir: path)
   with set-package-root(package-dir)
   var needs-build := False
   while {out-of-date()} 
-    println("Package config out of date")
     update-package-runner()
     needs-build := True
     ()
@@ -203,14 +203,13 @@ pub fun bootstrap-package(package-dir: path)
     build-package-runner()
     var result := run-result(package-runner-exe().string ++ " check-deps")
     while {result == exit-code-changed-deps}
-      println("Updating package script...")
       update-package-runner()
       build-package-runner()
-      ()
+      result := run-result(package-runner-exe().string ++ " check-deps")
     println("Result " ++ result.show)
   run-package-runner()
 
-// Updates the `./kokaw` runner script
+// Updates the `.kokaw/koka-package-runner` script
 fun update-package-runner()
   val last-deps = current-packages(current-dir() / "deps");
   copy-file(package-path(), kokaw-package-path())
@@ -224,10 +223,10 @@ fun out-of-date()
   val deps = current-packages(current-dir() / "deps")
   val last-deps = parse-last-deps()
   if pkg > current then
-    println("Package file out of date " ++ pkg.show ++ " " ++ current.show)
+    trace("Package file out of date " ++ pkg.show ++ " " ++ current.show)
     True
   elif deps != last-deps then
-    println("Current packages " ++ deps.show ++ " newer than last packages " ++ last-deps.show)
+    trace("Current packages " ++ deps.show ++ " newer than last packages " ++ last-deps.show)
     True
   else False
 
@@ -236,18 +235,19 @@ fun parse-last-deps()
   val file = read-text-file(last-deps-path())
   file.split("\n").filter(fn(p) p != "")
 
-// Build the `./kokaw` wrapper
+// Build the `.kokaw/koka-package-runner` wrapper
 fun build-package-runner()
+  trace("Building `package.kk` with new dependencies")
   val out = package-runner-exe()
   run("koka " ++ package-runner-source().string ++ " -o \"" ++ out.string ++ "\" -ideps -i.kokaw -i" ++ ("deps" / "kokaw").string)
   make-executable(out)
 
-// Build the `./kokaw` wrapper
+// Run the `.kokaw/koka-package-runner` wrapper
 fun run-package-runner()
   val args = get-args()
   run-result(package-runner-exe().string ++ " " ++ args.join(" "))
 
-// The template for the `./kokaw` wrapper
+// The template for the `.kokaw/koka-package-runner` wrapper
 fun package-runner(deps: list<string>)
   r#"
 import current/package
