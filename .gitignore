@@ -1,10 +1,10 @@
 .koka
 scratch/
 deps/
-.kokac
+.kokaw
 koka
 koka.exe
 kokatmp
-test2
-bin/kokac
-bin/kokac.exe
+test2/
+bin/kokaw
+bin/kokaw.exe
