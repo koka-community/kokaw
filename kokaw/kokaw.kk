@@ -104,7 +104,7 @@ fun includes(): <package-config,package-paths,io> list<path>
 
 // Get include arguments for the koka compiler
 fun includes-args(): <package-config,package-paths,io> list<string>
-  includes().map(fn(p) "-i" ++ p.string)
+  includes().map("-i" ++ _.string)
 
 // Basic package `bin/run.kk` file for testing dependencies install
 val basic-test = r#"
@@ -232,7 +232,7 @@ fun out-of-date()
 // Check to see if the deps have changed.
 fun parse-last-deps()
   val file = read-text-file(last-deps-path())
-  file.split("\n").filter(fn(p) p != "")
+  file.split("\n").filter(_ != "")
 
 // Build the `.kokaw/koka-package-runner` wrapper
 fun build-package-runner()
@@ -257,17 +257,17 @@ import kokaw/utils
 import std/os/env
 import std/os/path
 import std/os/dir
-"# ++ deps.map(fn(d) "\nimport " ++ d ++ "/package").join("") ++ r#"
+"# ++ deps.map("\nimport " ++ _ ++ "/package").join("") ++ r#"
 
 val package-path = "# ++ package-path().show ++ r#".path
-val last-deps = ["# ++ deps.map(fn(d) "\"" ++ d ++ "\"").join(", ") ++ r#"]
+val last-deps = ["# ++ deps.map("\"" ++ _ ++ "\"").join(", ") ++ r#"]
 
 fun main()
   with fun current-dir() cwd()
   with set-package-root(find-package-root(current-dir()))
   with default-package-config(current/package/package)
   process-exit(install-run(package-path, ["# ++ 
-    deps.map(fn(d) d ++ "/package/package").join(", ") ++
+    deps.map(_ ++ "/package/package").join(", ") ++
       r#"], last-deps))
 "#
 
@@ -275,7 +275,7 @@ fun main()
 fun current-packages(dep-dir: path): io list<string>
   val packages = dep-dir.list-directory.filter fn(d)
     (d / "package.kk").is-file
-  packages.map(fn(x) relative-path(x, dep-dir).string)
+  packages.map(relative-path(_, dep-dir).string)
 
 alias package-registrar = () -> <package-config> ()
 
