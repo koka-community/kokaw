@@ -90,13 +90,8 @@ pub fun dependency/show(this : dependency) : e string
 
 // No dependency on community std, means we have to do our own "set" operation - here we are doing it lazily after concatenating lists
 pub fun unique(l: list<dependency>): list<dependency>
-  var result := []
-  l.foreach fn(d)
-    if result.any(fn(d1) d.name == d1.name) then
-      ()
-    else
-      result := Cons(d, result)
-  result
+  l.foldl([]) fn(acc, d)
+    if acc.any(_ == d) then acc else Cons(d, acc)
 
 // scripts
 //   script(name)
